@@ -1,0 +1,30 @@
+﻿<Window x:Class="OgamaClientTest.PlayStationEyeTest"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:GazeTrackerUI.Controls="clr-namespace:GazeTrackerUI.TrackerViewer;assembly=GazeTracker"
+    xmlns:OgamaClient="clr-namespace:OgamaClient;assembly=OgamaClient"
+    Title="Window1" Height="418" Width="335" Closing="Window_Closing" Loaded="Window_Loaded">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="240"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+    <StackPanel Grid.Row="0" Orientation="Vertical" >
+      <WindowsFormsHost Name="windowsFormsHostCalibration" Background="CadetBlue" Height="240">
+        <OgamaClient:CalibrationResultControl Dock="Fill" x:Name="calibrationResultControl"></OgamaClient:CalibrationResultControl>
+      </WindowsFormsHost>
+      <WindowsFormsHost Name="windowsFormsHost" Height="240">
+        <OgamaClient:EyeVideoControl x:Name="videoImageControl"></OgamaClient:EyeVideoControl>
+      </WindowsFormsHost>
+    </StackPanel>
+    <StackPanel Orientation="Vertical" Grid.Row="1">
+      <Button Name="Connect" Click="Connect_Click">Connect</Button>
+      <Button Name="CameraSettings" Click="CameraSettings_Click">CameraSettings</Button>
+      <Button Name="ShowOnCalibrationScreen" Click="ShowOnCalibrationScreen_Click">ShowOnCalibrationScreen</Button>
+      <Button Name="Setup" Click="Setup_Click">Setup</Button>
+      <Button Name="Calibrate" Click="Calibrate_Click">Calibrate</Button>
+      <Button Name="Accept" Click="Accept_Click">Accept</Button>
+      <Button Name="Recalibrate" Click="Recalibrate_Click">Recalibrate</Button>
+    </StackPanel>
+  </Grid>
+</Window>

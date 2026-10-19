@@ -1,0 +1,3 @@
+Microsoft Windows 7 Ultimate 64-bit
+Microsoft Visual Studio 2010 Professional
+Intel Core i5 M520 (Dual-core, 2.4 GHz), 4 GB RAM

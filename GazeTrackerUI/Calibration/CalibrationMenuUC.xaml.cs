@@ -140,12 +140,13 @@ namespace GazeTracker
             }
         }
 
+        // MODIFIED: format with two decimals; Substring(0,3) threw on short values such as "0"
         public void SetAccuracy(double left, double right)
         {
             if(right != 0)
-                LabelAccuracyValues.Content = "left " + left.ToString().Substring(0,3) + " right " + right.ToString().Substring(0,3);
+                LabelAccuracyValues.Content = "left " + left.ToString("0.00") + " right " + right.ToString("0.00");
             else
-                LabelAccuracyValues.Content = left.ToString().Substring(0, 3);
+                LabelAccuracyValues.Content = left.ToString("0.00");
         }
 
 

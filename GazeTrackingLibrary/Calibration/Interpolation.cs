@@ -206,10 +206,13 @@ namespace GazeTrackingLibrary.Calibration
                 degreesLeft = 0;
             else
             {
-                Random RNG = new Random();
-                double averageErrorMM = ConvertPixToMm(averageErrorLeft);
+                // MODIFIED: removed the random placeholder (5 * RNG.NextDouble()) that overwrote the real value.
+                // Uses the unrounded mean error in pixels -> mm -> degrees of visual angle.
+                double totalError = 0;
+                foreach (CalibrationTarget ct in CalibrationTargets)
+                    totalError += ct.averageErrorLeft;
+                double averageErrorMM = ConvertPixToMm(totalError / calibTargets.Count);
                 degreesLeft = 180 * Math.Atan(averageErrorMM / GTSettings.Current.Calibration.DistanceFromScreen) / Math.PI;
-                degreesLeft = 5 * RNG.NextDouble();
             }
             return degreesLeft;
         }
@@ -220,10 +223,13 @@ namespace GazeTrackingLibrary.Calibration
                 degreesRight = 0;
             else
             {
-                Random RNG = new Random();
-                double averageErrorMM = ConvertPixToMm(averageErrorRight);
+                // MODIFIED: removed the random placeholder (5 * RNG.NextDouble()) that overwrote the real value.
+                // Uses the unrounded mean error in pixels -> mm -> degrees of visual angle.
+                double totalError = 0;
+                foreach (CalibrationTarget ct in CalibrationTargets)
+                    totalError += ct.averageErrorRight;
+                double averageErrorMM = ConvertPixToMm(totalError / calibTargets.Count);
                 degreesRight = 180 * Math.Atan(averageErrorMM / GTSettings.Current.Calibration.DistanceFromScreen) / Math.PI;
-                degreesRight = 5 * RNG.NextDouble();
             }
             return degreesRight;
         }

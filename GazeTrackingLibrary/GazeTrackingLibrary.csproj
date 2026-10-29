@@ -178,6 +178,7 @@
     <Compile Include="Utils\ScreenParameters.cs" />
     <Compile Include="Visualization.cs" />
     <Compile Include="Utils\GTGazeData.cs" />
+    <Compile Include="Utils\GazeQualityMetrics.cs" />
     <Compile Include="Detection\Pupil\Ellipse.cs" />
     <Compile Include="Tracker.cs" />
     <Compile Include="EyeMovement\IGazeSmoother.cs" />

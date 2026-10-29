@@ -1,4 +1,13 @@
-﻿using System;
+﻿/****************************************************
+ * Team member name(s): Banooqa Banday
+ * Date: 2026-10-28
+ * Project: 2 (Eye Tracker)
+ * Instructor: Komogortsev
+ ****************************************************/
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,6 +37,24 @@ namespace GazeTrackerUI.Calibration
         private double margin = 100;
         private Tracker tracker;
         public bool ExportCalibrationResults { get; set; }
+
+        // MODIFIED: state for the verification procedure (spatial accuracy / precision)
+        private const int VerificationSettleMs = 1000;   // discard samples while the eye moves to the target
+        private const int VerificationCollectMs = 1500;  // samples used for the metrics
+        private readonly List<double[]> verificationSamples = new List<double[]>();
+        private readonly object verificationLock = new object();
+        private readonly List<Point> verificationTargets = new List<Point>();
+        private readonly List<double> verificationAccuracy = new List<double>();
+        private readonly List<double> verificationPrecision = new List<double>();
+        private DispatcherTimer verificationTimer;
+        private Stopwatch verificationWatch;
+        private System.Windows.Shapes.Ellipse verificationDot;
+        private TextBlock verificationText;
+        private TextBlock verificationHint;
+        private bool verificationRunning;
+        private bool verificationCollecting;
+        private bool verificationSmoothed;
+        private int verificationIndex;
 
         #endregion
 
@@ -225,6 +252,7 @@ namespace GazeTrackerUI.Calibration
             {
                 // Show menu to accept or recalibrate
                 calibrationMenu.Visibility = Visibility.Visible;
+                ShowVerificationHint(true); // MODIFIED
 
                 if (calibrationMenu.CheckBoxVisualFeedback.IsChecked.Value)
                     ToggleCrosshair(null, null);
@@ -238,6 +266,29 @@ namespace GazeTrackerUI.Calibration
 
         private void Calibration_KeyDown(object sender, KeyEventArgs e)
         {
+            // MODIFIED: V starts the verification once the calibration menu is shown, Escape aborts it
+            if (verificationRunning)
+            {
+                if (e.Key.Equals(Key.Escape))
+                    StopVerification(true);
+                return;
+            }
+
+            if (e.Key.Equals(Key.V) && calibrationMenu.Visibility == Visibility.Visible)
+            {
+                StartVerification();
+                return;
+            }
+
+            if (verificationText != null && verificationText.Visibility == Visibility.Visible)
+            {
+                // Results are on screen: any key goes back to the menu
+                verificationText.Visibility = Visibility.Collapsed;
+                calibrationMenu.Visibility = Visibility.Visible;
+                ShowVerificationHint(true);
+                return;
+            }
+
             // Exit on Escape-key
             if (e.Key.Equals(Key.Escape))
             {
@@ -372,6 +423,242 @@ namespace GazeTrackerUI.Calibration
 
         #endregion
 
+
+
+        #region Verification - mean spatial accuracy and mean spatial precision (MODIFIED: new)
+
+        private void ShowVerificationHint(bool show)
+        {
+            if (verificationHint == null)
+            {
+                verificationHint = new TextBlock();
+                verificationHint.Text = "Press V to run the verification (spatial accuracy / precision)";
+                verificationHint.Foreground = Brushes.White;
+                verificationHint.FontSize = 16;
+                Canvas.SetLeft(verificationHint, 250);
+                Canvas.SetTop(verificationHint, 305);
+                Panel.SetZIndex(verificationHint, 5);
+                CanvasRoot.Children.Add(verificationHint);
+            }
+            verificationHint.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void StartVerification()
+        {
+            calibrationMenu.Visibility = Visibility.Collapsed;
+            ShowVerificationHint(false);
+            if (verificationText != null)
+                verificationText.Visibility = Visibility.Collapsed;
+
+            // 3x3 grid of targets, 10 %, 50 % and 90 % of the window
+            verificationTargets.Clear();
+            double[] fractions = new double[] { 0.1, 0.5, 0.9 };
+            for (int row = 0; row < 3; row++)
+                for (int col = 0; col < 3; col++)
+                    verificationTargets.Add(new Point(CanvasRoot.Width * fractions[col], CanvasRoot.Height * fractions[row]));
+
+            verificationAccuracy.Clear();
+            verificationPrecision.Clear();
+            lock (verificationLock)
+                verificationSamples.Clear();
+
+            if (verificationDot == null)
+            {
+                verificationDot = new System.Windows.Shapes.Ellipse();
+                verificationDot.Width = 24;
+                verificationDot.Height = 24;
+                verificationDot.Fill = Brushes.Red;
+                verificationDot.Stroke = Brushes.White;
+                verificationDot.StrokeThickness = 3;
+                Panel.SetZIndex(verificationDot, 4);
+                CanvasRoot.Children.Add(verificationDot);
+            }
+            verificationDot.Visibility = Visibility.Visible;
+
+            // Same gaze signal as the on-screen crosshair
+            verificationSmoothed = GTSettings.Current.Processing.EyeMouseSmooth;
+            if (verificationSmoothed)
+                tracker.GazeDataSmoothed.GazeDataChanged += Verification_OnNewGazeData;
+            else
+                tracker.GazeDataRaw.GazeDataChanged += Verification_OnNewGazeData;
+
+            verificationRunning = true;
+            verificationIndex = -1;
+            verificationWatch = new Stopwatch();
+            verificationTimer = new DispatcherTimer();
+            verificationTimer.Interval = TimeSpan.FromMilliseconds(30);
+            verificationTimer.Tick += Verification_OnTick;
+            NextVerificationTarget();
+            verificationTimer.Start();
+        }
+
+        private void NextVerificationTarget()
+        {
+            verificationIndex++;
+            if (verificationIndex >= verificationTargets.Count)
+            {
+                StopVerification(false);
+                return;
+            }
+
+            Point target = verificationTargets[verificationIndex];
+            Canvas.SetLeft(verificationDot, target.X - verificationDot.Width / 2);
+            Canvas.SetTop(verificationDot, target.Y - verificationDot.Height / 2);
+
+            lock (verificationLock)
+            {
+                verificationSamples.Clear();
+                verificationCollecting = false;
+            }
+            verificationWatch.Reset();
+            verificationWatch.Start();
+        }
+
+        private void Verification_OnTick(object sender, EventArgs e)
+        {
+            long ms = verificationWatch.ElapsedMilliseconds;
+
+            // Start collecting after the settle time
+            if (ms >= VerificationSettleMs && !verificationCollecting)
+            {
+                lock (verificationLock)
+                    verificationCollecting = true;
+            }
+
+            if (ms >= VerificationSettleMs + VerificationCollectMs)
+            {
+                FinishVerificationTarget();
+                NextVerificationTarget();
+            }
+        }
+
+        // May be called from the tracking thread
+        private void Verification_OnNewGazeData(double x, double y)
+        {
+            if (x < 0 || y < 0) return;
+            lock (verificationLock)
+            {
+                if (verificationCollecting)
+                    verificationSamples.Add(new double[] { x, y });
+            }
+        }
+
+        private void FinishVerificationTarget()
+        {
+            List<double[]> samples;
+            lock (verificationLock)
+            {
+                verificationCollecting = false;
+                samples = new List<double[]>(verificationSamples);
+                verificationSamples.Clear();
+            }
+
+            Point target = verificationTargets[verificationIndex];
+            double mmPerUnit = ScreenParameters.PrimarySize.Width / CanvasRoot.Width;
+            double distanceMm = GTSettings.Current.Calibration.DistanceFromScreen;
+
+            verificationAccuracy.Add(GazeQualityMetrics.SpatialAccuracy(samples, target.X, target.Y, mmPerUnit, distanceMm));
+            verificationPrecision.Add(GazeQualityMetrics.SpatialPrecision(samples, mmPerUnit, distanceMm));
+        }
+
+        private void StopVerification(bool aborted)
+        {
+            if (verificationTimer != null)
+            {
+                verificationTimer.Stop();
+                verificationTimer.Tick -= Verification_OnTick;
+            }
+
+            try
+            {
+                tracker.GazeDataSmoothed.GazeDataChanged -= Verification_OnNewGazeData;
+                tracker.GazeDataRaw.GazeDataChanged -= Verification_OnNewGazeData;
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger.ProcessException(ex, false);
+            }
+
+            verificationRunning = false;
+            verificationDot.Visibility = Visibility.Collapsed;
+
+            if (aborted)
+            {
+                calibrationMenu.Visibility = Visibility.Visible;
+                ShowVerificationHint(true);
+                return;
+            }
+
+            ShowVerificationResults();
+        }
+
+        private void ShowVerificationResults()
+        {
+            double meanAccuracy = GazeQualityMetrics.MeanIgnoringNaN(verificationAccuracy);
+            double meanPrecision = GazeQualityMetrics.MeanIgnoringNaN(verificationPrecision);
+
+            int valid = 0;
+            string lines = "";
+            for (int i = 0; i < verificationAccuracy.Count; i++)
+            {
+                if (!double.IsNaN(verificationAccuracy[i])) valid++;
+                lines += "Target " + (i + 1) + ":  accuracy " + FormatDegrees(verificationAccuracy[i]) +
+                         "   precision " + FormatDegrees(verificationPrecision[i]) + "\n";
+            }
+
+            string text = "VERIFICATION RESULTS\n\n" +
+                          "Mean spatial accuracy:  " + FormatDegrees(meanAccuracy) + "\n" +
+                          "Mean spatial precision (RMS-S2S):  " + FormatDegrees(meanPrecision) + "\n" +
+                          "Targets with data:  " + valid + " / " + verificationAccuracy.Count + "\n" +
+                          "Distance from screen:  " + GTSettings.Current.Calibration.DistanceFromScreen + " mm\n\n" +
+                          lines + "\nPress any key to return";
+
+            if (verificationText == null)
+            {
+                verificationText = new TextBlock();
+                verificationText.Foreground = Brushes.White;
+                verificationText.Background = Brushes.Black;
+                verificationText.FontSize = 24;
+                verificationText.FontFamily = new FontFamily("Consolas");
+                Canvas.SetLeft(verificationText, 150);
+                Canvas.SetTop(verificationText, 80);
+                Panel.SetZIndex(verificationText, 6);
+                CanvasRoot.Children.Add(verificationText);
+            }
+            verificationText.Text = text;
+            verificationText.Visibility = Visibility.Visible;
+
+            SaveVerificationResults(meanAccuracy, meanPrecision);
+        }
+
+        private static string FormatDegrees(double value)
+        {
+            return double.IsNaN(value) ? "n/a" : value.ToString("0.00") + " deg";
+        }
+
+        private void SaveVerificationResults(double meanAccuracy, double meanPrecision)
+        {
+            try
+            {
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "verification_results.csv");
+                bool exists = File.Exists(path);
+                using (StreamWriter w = new StreamWriter(path, true))
+                {
+                    if (!exists)
+                        w.WriteLine("time,distance_mm,mean_accuracy_deg,mean_precision_deg");
+                    w.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "," +
+                                GTSettings.Current.Calibration.DistanceFromScreen + "," +
+                                meanAccuracy.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                                meanPrecision.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture));
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger.ProcessException(ex, false);
+            }
+        }
+
+        #endregion
 
         #region Set/Get
 

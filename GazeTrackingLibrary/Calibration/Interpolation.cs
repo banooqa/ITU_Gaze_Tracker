@@ -1,4 +1,10 @@
-﻿using System;
+﻿/****************************************************
+ * Team member name(s): Banooqa Banday
+ * Date: 2026-10-28
+ * Project: 2 (Eye Tracker)
+ * Instructor: Komogortsev
+ ****************************************************/
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;

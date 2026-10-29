@@ -42,6 +42,7 @@ namespace GazeTrackerUI.Calibration
         private const int VerificationSettleMs = 1000;   // discard samples while the eye moves to the target
         private const int VerificationCollectMs = 1500;  // samples used for the metrics
         private readonly List<double[]> verificationSamples = new List<double[]>();
+        private readonly List<double[]> verificationPolled = new List<double[]>();  // fallback: gaze position read on a timer
         private readonly object verificationLock = new object();
         private readonly List<Point> verificationTargets = new List<Point>();
         private readonly List<double> verificationAccuracy = new List<double>();
@@ -58,6 +59,9 @@ namespace GazeTrackerUI.Calibration
         private int verificationEventsTotal;     // diagnostics: all gaze events received during the run
         private int verificationEventsRejected;  // diagnostics: events with invalid (negative) coordinates
         private int verificationEventsUsed;      // diagnostics: samples used for the metrics
+        private int verificationPolledUsed;      // diagnostics: samples read by polling (fallback)
+        private double verificationLastPolledX;
+        private double verificationLastPolledY;
 
         #endregion
 
@@ -468,6 +472,8 @@ namespace GazeTrackerUI.Calibration
                 verificationEventsTotal = 0;
                 verificationEventsRejected = 0;
                 verificationEventsUsed = 0;
+                verificationPolledUsed = 0;
+                verificationPolled.Clear();
             }
 
             if (verificationDot == null)
@@ -516,6 +522,7 @@ namespace GazeTrackerUI.Calibration
             lock (verificationLock)
             {
                 verificationSamples.Clear();
+                verificationPolled.Clear();
                 verificationCollecting = false;
             }
             verificationWatch.Reset();
@@ -533,10 +540,33 @@ namespace GazeTrackerUI.Calibration
                     verificationCollecting = true;
             }
 
+            if (verificationCollecting)
+                PollGazePosition();
+
             if (ms >= VerificationSettleMs + VerificationCollectMs)
             {
                 FinishVerificationTarget();
                 NextVerificationTarget();
+            }
+        }
+
+        // Fallback in case the gaze events do not reach the verification: read the latest gaze position
+        // from the tracker and keep it when it has changed since the last read (i.e. a new frame was processed).
+        private void PollGazePosition()
+        {
+            GTGazeData data = verificationSmoothed ? tracker.GazeDataSmoothed : tracker.GazeDataRaw;
+            double x = data.GazePositionX;
+            double y = data.GazePositionY;
+
+            if (x <= 0 || y <= 0 || double.IsNaN(x) || double.IsNaN(y)) return;
+            if (x == verificationLastPolledX && y == verificationLastPolledY) return;
+
+            verificationLastPolledX = x;
+            verificationLastPolledY = y;
+            lock (verificationLock)
+            {
+                verificationPolled.Add(new double[] { x, y });
+                verificationPolledUsed++;
             }
         }
 
@@ -565,8 +595,10 @@ namespace GazeTrackerUI.Calibration
             lock (verificationLock)
             {
                 verificationCollecting = false;
-                samples = new List<double[]>(verificationSamples);
+                // Use the gaze events; if there are too few of them, use the polled positions instead
+                samples = new List<double[]>(verificationSamples.Count >= 2 ? verificationSamples : verificationPolled);
                 verificationSamples.Clear();
+                verificationPolled.Clear();
             }
 
             Point target = verificationTargets[verificationIndex];
@@ -628,7 +660,7 @@ namespace GazeTrackerUI.Calibration
                           "Targets with data:  " + valid + " / " + verificationAccuracy.Count + "\n" +
                           "Distance from screen:  " + GTSettings.Current.Calibration.DistanceFromScreen + " mm\n" +
                           "Screen width used:  " + ScreenParameters.PrimarySize.Width + " mm\n" +
-                          "Gaze events: " + verificationEventsTotal + "  rejected: " + verificationEventsRejected + "  used: " + verificationEventsUsed + "\n\n" +
+                          "Gaze events: " + verificationEventsTotal + "  rejected: " + verificationEventsRejected + "  used: " + verificationEventsUsed + "  polled: " + verificationPolledUsed + "\n\n" +
                           lines + "\nPress any key to return";
 
             if (verificationText == null)

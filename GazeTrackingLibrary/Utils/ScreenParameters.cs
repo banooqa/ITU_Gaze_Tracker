@@ -1,4 +1,10 @@
-﻿using System;
+﻿/****************************************************
+ * Team member name(s): Banooqa Banday
+ * Date: 2026-10-28
+ * Project: 2 (Eye Tracker)
+ * Instructor: Komogortsev
+ ****************************************************/
+using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 
@@ -85,6 +91,27 @@ namespace GazeTrackingLibrary.Utils
                     primaryResolution.Height = GetDeviceCaps(hdc, DeviceCap.VERTRES);
                     primarySize.Width = (int)Math.Round((double)primaryResolution.Width / GetDeviceCaps(hdc, DeviceCap.LOGPIXELSX) * 2.54) * 10;
 					primarySize.Height = (int)Math.Round((double)primaryResolution.Height / GetDeviceCaps(hdc, DeviceCap.LOGPIXELSY) * 2.54) * 10;
+
+                    // MODIFIED: the size above assumes the logical DPI equals the real DPI, which is usually wrong
+                    // (e.g. 96 logical vs ~140 real on a laptop) and inflates the degrees of visual angle.
+                    // If screen_width_mm.txt (the visible screen width in mm, measured with a ruler) exists next to
+                    // the program, use it instead.
+                    try
+                    {
+                        string file = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screen_width_mm.txt");
+                        if (System.IO.File.Exists(file))
+                        {
+                            double widthMm = double.Parse(System.IO.File.ReadAllText(file).Trim(), System.Globalization.CultureInfo.InvariantCulture);
+                            if (widthMm > 0)
+                            {
+                                primarySize.Height = (int)Math.Round(widthMm * primaryResolution.Height / primaryResolution.Width);
+                                primarySize.Width = (int)Math.Round(widthMm);
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
                 }
                 DeleteDC(hdc);
             }

@@ -55,6 +55,9 @@ namespace GazeTrackerUI.Calibration
         private bool verificationCollecting;
         private bool verificationSmoothed;
         private int verificationIndex;
+        private int verificationEventsTotal;     // diagnostics: all gaze events received during the run
+        private int verificationEventsRejected;  // diagnostics: events with invalid (negative) coordinates
+        private int verificationEventsUsed;      // diagnostics: samples used for the metrics
 
         #endregion
 
@@ -460,7 +463,12 @@ namespace GazeTrackerUI.Calibration
             verificationAccuracy.Clear();
             verificationPrecision.Clear();
             lock (verificationLock)
+            {
                 verificationSamples.Clear();
+                verificationEventsTotal = 0;
+                verificationEventsRejected = 0;
+                verificationEventsUsed = 0;
+            }
 
             if (verificationDot == null)
             {
@@ -535,11 +543,19 @@ namespace GazeTrackerUI.Calibration
         // May be called from the tracking thread
         private void Verification_OnNewGazeData(double x, double y)
         {
-            if (x < 0 || y < 0) return;
             lock (verificationLock)
             {
+                verificationEventsTotal++;
+                if (x < 0 || y < 0 || double.IsNaN(x) || double.IsNaN(y))
+                {
+                    verificationEventsRejected++;
+                    return;
+                }
                 if (verificationCollecting)
+                {
                     verificationSamples.Add(new double[] { x, y });
+                    verificationEventsUsed++;
+                }
             }
         }
 
@@ -610,7 +626,9 @@ namespace GazeTrackerUI.Calibration
                           "Mean spatial accuracy:  " + FormatDegrees(meanAccuracy) + "\n" +
                           "Mean spatial precision (RMS-S2S):  " + FormatDegrees(meanPrecision) + "\n" +
                           "Targets with data:  " + valid + " / " + verificationAccuracy.Count + "\n" +
-                          "Distance from screen:  " + GTSettings.Current.Calibration.DistanceFromScreen + " mm\n\n" +
+                          "Distance from screen:  " + GTSettings.Current.Calibration.DistanceFromScreen + " mm\n" +
+                          "Screen width used:  " + ScreenParameters.PrimarySize.Width + " mm\n" +
+                          "Gaze events: " + verificationEventsTotal + "  rejected: " + verificationEventsRejected + "  used: " + verificationEventsUsed + "\n\n" +
                           lines + "\nPress any key to return";
 
             if (verificationText == null)

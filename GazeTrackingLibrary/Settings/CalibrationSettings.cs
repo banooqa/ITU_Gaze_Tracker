@@ -63,8 +63,8 @@ namespace GazeTrackingLibrary.Settings
         private int areaWidth = 0;
         private int areaHeight = 0;
         private int distanceFromScreen = 0;
-        // MODIFIED: default eye-to-screen distance in mm, was 600 (my measured distance is about 53 cm)
-        private int defaultDistanceFromScreen = 533;
+        // MODIFIED: default eye-to-screen distance in mm, was 600 (my eyes are 50 cm from the screen)
+        private int defaultDistanceFromScreen = 500;
         private double acceleration = 6;
         private bool autoAccept = true;
         private SolidColorBrush backgroundColor = new SolidColorBrush(Colors.DarkGray);
@@ -456,9 +456,9 @@ namespace GazeTrackingLibrary.Settings
                                 AreaHeight = Int32.Parse(xmlReader.Value);
                                 break;
                             case "DistanceFromScreen":
-                                // MODIFIED: a saved 600 is the old default and is treated as "not set"
+                                // MODIFIED: a saved 600 or 533 is an old default and is treated as "not set"
                                 int savedDistance = Int32.Parse(xmlReader.Value);
-                                if (savedDistance != 600)
+                                if (savedDistance != 600 && savedDistance != 533)
                                     DistanceFromScreen = savedDistance;
                                 break;
                             case "NumberOfPoints":

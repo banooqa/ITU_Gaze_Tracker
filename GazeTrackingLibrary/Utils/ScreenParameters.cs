@@ -15,6 +15,10 @@ namespace GazeTrackingLibrary.Utils
         private static Size primaryResolution;
         private static Size primarySize;
 
+        // MODIFIED: measured width of the visible screen area of this laptop (ruler, 13.5 in)
+        private const double DefaultMeasuredWidthMm = 343;
+        private static string primaryWidthSource = "operating system estimate";
+
         private static Size secondaryResolution;
         private static Size secondarySize;
 
@@ -25,6 +29,54 @@ namespace GazeTrackingLibrary.Utils
                 GetPrimary();
                 return primaryResolution;
             }
+        }
+
+        // MODIFIED: where the screen width came from (shown on the verification results screen)
+        public static string PrimaryWidthSource
+        {
+            get
+            {
+                GetPrimary();
+                return primaryWidthSource;
+            }
+        }
+
+        // MODIFIED: reads the first number in screen_width_mm.txt; returns 0 when no such file is found
+        private static double FindMeasuredWidthMm()
+        {
+            var folders = new System.Collections.Generic.List<string>();
+            try
+            {
+                folders.Add(AppDomain.CurrentDomain.BaseDirectory);
+                folders.Add(System.IO.Directory.GetCurrentDirectory());
+                System.IO.DirectoryInfo dir = new System.IO.DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+                for (int i = 0; i < 3 && dir.Parent != null; i++)
+                {
+                    dir = dir.Parent;
+                    folders.Add(dir.FullName);
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            foreach (string folder in folders)
+            {
+                try
+                {
+                    string file = System.IO.Path.Combine(folder, "screen_width_mm.txt");
+                    if (!System.IO.File.Exists(file)) continue;
+                    System.Text.RegularExpressions.Match m =
+                        System.Text.RegularExpressions.Regex.Match(System.IO.File.ReadAllText(file), @"\d+(\.\d+)?");
+                    if (!m.Success) continue;
+                    double value = double.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture);
+                    if (value > 0) return value;
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return 0;
         }
 
         public static Size PrimarySize
@@ -94,24 +146,19 @@ namespace GazeTrackingLibrary.Utils
 
                     // MODIFIED: the size above assumes the logical DPI equals the real DPI, which is usually wrong
                     // (e.g. 96 logical vs ~140 real on a laptop) and inflates the degrees of visual angle.
-                    // If screen_width_mm.txt (the visible screen width in mm, measured with a ruler) exists next to
-                    // the program, use it instead.
-                    try
+                    // Use the width measured with a ruler instead: first screen_width_mm.txt (searched in the
+                    // program folder, the working folder and up to three parent folders), then the built-in
+                    // default of this laptop.
+                    double measuredMm = FindMeasuredWidthMm();
+                    if (measuredMm > 0)
+                        primaryWidthSource = "screen_width_mm.txt";
+                    else
                     {
-                        string file = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "screen_width_mm.txt");
-                        if (System.IO.File.Exists(file))
-                        {
-                            double widthMm = double.Parse(System.IO.File.ReadAllText(file).Trim(), System.Globalization.CultureInfo.InvariantCulture);
-                            if (widthMm > 0)
-                            {
-                                primarySize.Height = (int)Math.Round(widthMm * primaryResolution.Height / primaryResolution.Width);
-                                primarySize.Width = (int)Math.Round(widthMm);
-                            }
-                        }
+                        measuredMm = DefaultMeasuredWidthMm;
+                        primaryWidthSource = "built-in default";
                     }
-                    catch (Exception)
-                    {
-                    }
+                    primarySize.Height = (int)Math.Round(measuredMm * primaryResolution.Height / primaryResolution.Width);
+                    primarySize.Width = (int)Math.Round(measuredMm);
                 }
                 DeleteDC(hdc);
             }

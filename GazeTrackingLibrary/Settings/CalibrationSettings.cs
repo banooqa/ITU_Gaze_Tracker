@@ -1,4 +1,10 @@
-﻿// <copyright file="CalibrationSettings.cs" company="ITU">
+﻿/****************************************************
+ * Team member name(s): Banooqa Banday
+ * Date: 2026-10-30
+ * Project: 2 (Eye Tracker)
+ * Instructor: Komogortsev
+ ****************************************************/
+// <copyright file="CalibrationSettings.cs" company="ITU">
 // ******************************************************
 // GazeTrackingLibrary for ITU GazeTracker
 // Copyright (C) 2010 Martin Tall  
@@ -57,7 +63,8 @@ namespace GazeTrackingLibrary.Settings
         private int areaWidth = 0;
         private int areaHeight = 0;
         private int distanceFromScreen = 0;
-        private int defaultDistanceFromScreen = 600;
+        // MODIFIED: default eye-to-screen distance in mm, was 600 (my measured distance is about 53 cm)
+        private int defaultDistanceFromScreen = 533;
         private double acceleration = 6;
         private bool autoAccept = true;
         private SolidColorBrush backgroundColor = new SolidColorBrush(Colors.DarkGray);
@@ -449,7 +456,10 @@ namespace GazeTrackingLibrary.Settings
                                 AreaHeight = Int32.Parse(xmlReader.Value);
                                 break;
                             case "DistanceFromScreen":
-                                DistanceFromScreen = Int32.Parse(xmlReader.Value);
+                                // MODIFIED: a saved 600 is the old default and is treated as "not set"
+                                int savedDistance = Int32.Parse(xmlReader.Value);
+                                if (savedDistance != 600)
+                                    DistanceFromScreen = savedDistance;
                                 break;
                             case "NumberOfPoints":
                                 NumberOfPoints = Int32.Parse(xmlReader.Value);

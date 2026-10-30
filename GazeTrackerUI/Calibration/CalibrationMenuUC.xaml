@@ -78,7 +78,7 @@
 				<Grid Margin="10,24,15,32">
 					<Label Margin="0,0,67.143,0" Content="Distance from screen" Foreground="#FFABABAB"/>
 				
-					<TextBox x:Name="TextBoxDistanceFromScreen" BorderBrush="#FF767676" HorizontalAlignment="Right" Margin="0,2,31.144,0" VerticalAlignment="Top" Width="40" Height="18" Background="#E52C2C2C" FontSize="10.667" Foreground="#FFC3C3C3" Text="600"/>
+					<TextBox x:Name="TextBoxDistanceFromScreen" BorderBrush="#FF767676" HorizontalAlignment="Right" Margin="0,2,31.144,0" VerticalAlignment="Top" Width="40" Height="18" Background="#E52C2C2C" FontSize="10.667" Foreground="#FFC3C3C3" Text="533"/>
 					<Label Content="mm" Foreground="#FFABABAB" HorizontalAlignment="Right"/>
 				</Grid>
 				<Label Content="x" MouseDown="CloseAccuracyParamGrid" Background="{x:Null}" FontFamily="Verdana" FontSize="18" Foreground="#FF989898" HorizontalAlignment="Right" x:Name="X" Width="Auto" Height="Auto" Margin="0,-4.344,3,0" ToolTip="Close" VerticalAlignment="Top" Panel.ZIndex="1" />

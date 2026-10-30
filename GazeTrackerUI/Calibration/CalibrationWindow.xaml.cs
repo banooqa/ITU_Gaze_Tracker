@@ -89,6 +89,9 @@ namespace GazeTrackerUI.Calibration
 
             ExportCalibrationResults = false;
 
+            // MODIFIED: show the distance that is really used for the accuracy calculation
+            calibrationMenu.DistanceFromScreen = GTSettings.Current.Calibration.DistanceFromScreen;
+
             // Hide menues and stuff
             calibrationMenu.Visibility = Visibility.Collapsed;
             sharingUC.Visibility = Visibility.Collapsed;
@@ -659,7 +662,7 @@ namespace GazeTrackerUI.Calibration
                           "Mean spatial precision (RMS-S2S):  " + FormatDegrees(meanPrecision) + "\n" +
                           "Targets with data:  " + valid + " / " + verificationAccuracy.Count + "\n" +
                           "Distance from screen:  " + GTSettings.Current.Calibration.DistanceFromScreen + " mm\n" +
-                          "Screen width used:  " + ScreenParameters.PrimarySize.Width + " mm\n" +
+                          "Screen width used:  " + ScreenParameters.PrimarySize.Width + " mm (" + ScreenParameters.PrimaryWidthSource + ")\n" +
                           "Gaze events: " + verificationEventsTotal + "  rejected: " + verificationEventsRejected + "  used: " + verificationEventsUsed + "  polled: " + verificationPolledUsed + "\n\n" +
                           lines + "\nPress any key to return";
 
